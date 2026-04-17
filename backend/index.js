@@ -99,17 +99,18 @@ const audioUpload = multer({
 
 app.post('/api/auth/login', authLimiter, (req, res) => {
   const { username, password } = req.body || {};
-  if (
-    username !== process.env.DJ_USERNAME ||
-    password !== process.env.DJ_PASSWORD
-  ) {
+  
+  if (!process.env.DJ_USERNAME || !process.env.DJ_PASSWORD) {
+    return res.status(500).json({ error: 'Credenciales no configuradas en el servidor.' });
+  }
+
+  if (username !== process.env.DJ_USERNAME || password !== process.env.DJ_PASSWORD) {
     return res.status(401).json({ error: 'Credenciales incorrectas' });
   }
-  const token = jwt.sign(
-    { username, role: 'dj' },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+
+  const secret = process.env.JWT_SECRET || 'secret-por-defecto-123';
+  const token = jwt.sign({ username, role: 'dj' }, secret, { expiresIn: '7d' });
+
   res.cookie('dj_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
