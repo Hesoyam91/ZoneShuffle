@@ -89,8 +89,8 @@ function TerminalLabel({ state }) {
   );
 }
 
-// ── Colour-Tunnel Canvas (2000s player aesthetic) ─────────────
-function TunnelCanvas() {
+// ── WMP 2008 Energy Waves Canvas ─────────────────────────────────
+function VisualizerCanvas({ playing }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
 
@@ -99,15 +99,7 @@ function TunnelCanvas() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    // Palette cycles — deep cyan / electric teal / violet accents
-    const PALETTE = [
-      '#00ffe7', '#00d4f5', '#00aad4', '#0076b0',
-      '#004880', '#003060', '#0055aa', '#0099cc',
-      '#00ccee', '#40e8ff', '#7df4ff', '#00b8e0',
-    ];
-
     let t = 0;
-    const RINGS = 22;
 
     const resize = () => {
       canvas.width = canvas.offsetWidth;
@@ -119,57 +111,77 @@ function TunnelCanvas() {
 
     const draw = () => {
       const { width: W, height: H } = canvas;
-      const cx = W / 2;
-      const cy = H / 2;
-
-      ctx.fillStyle = '#04080e';
+      
+      if (!playing) {
+          ctx.fillStyle = '#020408';
+          ctx.fillRect(0, 0, W, H);
+          return;
+      }
+      
+      // Clear with slight trailing effect for motion blur
+      ctx.fillStyle = 'rgba(2, 4, 8, 0.35)';
       ctx.fillRect(0, 0, W, H);
 
-      for (let i = RINGS; i >= 1; i--) {
-        // perspective scale: rings closer to centre = smaller, further back in tunnel
-        const depth = i / RINGS;                       // 1 = nearest, ~0 = vanishing point
-        const speed = 0.018;
-        const phase = (t * speed + depth) % 1;         // 0..1, drives colour shift
-        const eased = Math.pow(phase, 1.4);
+      // Cycle hue smoothly over time for that dynamic look
+      const hue = (t * 0.6) % 360;
+      const baseColor = `hsl(${hue}, 90%, 65%)`;
+      const glowColor = `hsla(${hue}, 90%, 65%, 0.4)`;
+      
+      // Update global CSS variables to sync the whole page
+      document.documentElement.style.setProperty('--dynamic-accent', baseColor);
+      document.documentElement.style.setProperty('--dynamic-accent-glow', glowColor);
 
-        const maxR = Math.min(W, H) * 0.52;
-        const r = eased * maxR;
+      // Draw vertical equalizer bars in background
+      const numBars = 40;
+      const barWidth = W / numBars;
+      for (let i = 0; i < numBars; i++) {
+         const bx = i * barWidth;
+         const barHeight = Math.abs(Math.sin(i * 0.4 + t * 0.1) * Math.cos(i * 0.2 + t * 0.05)) * (H * 0.6) + 10;
+         ctx.fillStyle = `hsla(${(hue + i * 2) % 360}, 80%, 45%, 0.15)`;
+         ctx.fillRect(bx, H - barHeight, barWidth - 1, barHeight);
+      }
 
-        // slight wobble / drift for organic feel
-        const wX = Math.sin(t * 0.008 + i * 0.4) * 6;
-        const wY = Math.cos(t * 0.006 + i * 0.35) * 4;
-
-        // colour index cycles through palette smoothly
-        const colIdx = (Math.floor(phase * PALETTE.length + i * 0.7 + t * 0.04)) % PALETTE.length;
-        const col = PALETTE[((colIdx % PALETTE.length) + PALETTE.length) % PALETTE.length];
-
-        // opacity fades near edges (tunnel depth)
-        const alpha = 0.55 - eased * 0.38;
-
+      // Draw WMP 2008 style sweeping fluid waves
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      for (let w = 0; w < 3; w++) {
         ctx.beginPath();
-        ctx.ellipse(cx + wX, cy + wY, r, r * 0.62, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = col;
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = 1.5 + (1 - eased) * 1.5;
+        for (let x = 0; x <= W; x += 8) {
+           const normX = x / W;
+           const y1 = Math.sin(normX * 8 + t * 0.04 + w * 2.5) * (H * 0.25);
+           const y2 = Math.cos(normX * 6 - t * 0.02 + w) * (H * 0.15);
+           const y = H / 2 + y1 + y2;
+           if (x === 0) ctx.moveTo(x, y);
+           else ctx.lineTo(x, y);
+        }
+        ctx.lineWidth = 4 - w;
+        ctx.strokeStyle = `hsla(${(hue + w * 40) % 360}, 100%, 70%, ${1 - (w * 0.2)})`;
         ctx.stroke();
       }
 
-      ctx.globalAlpha = 1;
       t++;
       rafRef.current = requestAnimationFrame(draw);
     };
 
-    rafRef.current = requestAnimationFrame(draw);
+    if (playing) {
+      rafRef.current = requestAnimationFrame(draw);
+    } else {
+      draw(); // Draw idle frame
+      document.documentElement.style.setProperty('--dynamic-accent', 'var(--accent)');
+      document.documentElement.style.setProperty('--dynamic-accent-glow', 'var(--accent-glow)');
+    }
+
     return () => {
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
-  }, []);
+  }, [playing]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="tunnel-canvas"
+      className="visualizer-canvas"
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
     />
   );
@@ -180,11 +192,8 @@ function AlbumArt({ playing }) {
   return (
     <div className="album-art">
       <div className="album-art-visual">
-        {playing ? (
-          <TunnelCanvas />
-        ) : (
-          <span className="album-art-idle">OFFLINE</span>
-        )}
+        <VisualizerCanvas playing={playing} />
+        {!playing && <span className="album-art-idle">OFFLINE</span>}
       </div>
     </div>
   );
@@ -201,6 +210,11 @@ export default function Home() {
 
   const [status, setStatus] = useState(null);
   const [tuned, setTuned] = useState(false);
+  const tunedRef = useRef(false);
+
+  useEffect(() => {
+    tunedRef.current = tuned;
+  }, [tuned]);
   const [loading, setLoading] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
@@ -250,7 +264,7 @@ export default function Home() {
     try {
       const { data } = await api.get('/radio/status');
       setStatus(data);
-      if (resync && tuned && data.playing) syncAudio(data);
+      if (resync && tunedRef.current && data.playing) syncAudio(data);
     } catch (_) { }
   };
 
@@ -368,7 +382,7 @@ export default function Home() {
     <div className="page">
       {/* Navbar */}
       <nav className="navbar">
-        <Link to="/" className="navbar-brand">SHUFFLE ZONE</Link>
+        <Link to="/" className="navbar-brand"></Link>
         <ul className="navbar-links">
           <li><Link to="/login">DJ ↗</Link></li>
         </ul>
@@ -380,7 +394,7 @@ export default function Home() {
         <TerminalLabel state={labelState} />
 
         <h1 className="hero-title" data-text="SHUFFLE ZONE">SHUFFLE ZONE</h1>
-        <p className="hero-subtitle">signal from somewhere else</p>
+        <p className="hero-subtitle">Signal from the outworld</p>
 
         <div className="player-card fade-in">
           {/* Live / Off-air badge */}
@@ -533,7 +547,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="footer">
         <p className="footer-text">
-          SHUFFLE ZONE — broadcasting from the static &nbsp;·&nbsp;{' '}
+          shuffle zone - Radio Broadcasting &nbsp;·&nbsp;{' '}
           <Link to="/login">DJ access</Link>
         </p>
       </footer>
