@@ -1,0 +1,25 @@
+# Node.js
+node_modules/
+dist/
+npm-debug.log
+
+# Entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Base de datos
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+
+# Subidas / Archivos temporales
+backend/uploads/
+uploads/
+
+# Mac / SO
+.DS_Store
+__MACOSX
