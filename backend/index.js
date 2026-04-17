@@ -30,13 +30,7 @@ app.use(
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
-        .split(',')
-        .map((u) => u.trim());
-      if (!origin || allowed.includes(origin)) return callback(null, true);
-      callback(new Error('CORS: origin not allowed'));
-    },
+    origin: true,
     credentials: true,
   })
 );
